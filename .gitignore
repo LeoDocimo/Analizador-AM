@@ -1,0 +1,18 @@
+# Entorno virtual
+.venv/
+env/
+venv/
+
+# Temporales de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Streamlit y Logs
+.streamlit/
+*.log
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
