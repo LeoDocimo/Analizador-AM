@@ -2,8 +2,12 @@ import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
 import sympy as sp
-from math_engine import compute_analytics, analyze_polares_process, compute_directional, get_taylor_step_by_step
-from plotter import create_3d_plot
+try:
+    from math_engine import compute_analytics, analyze_polares_process, compute_directional, get_taylor_step_by_step
+    from plotter import create_3d_plot
+except ImportError:
+    from src.math_engine import compute_analytics, analyze_polares_process, compute_directional, get_taylor_step_by_step
+    from src.plotter import create_3d_plot
 
 st.set_page_config(page_title="Analizador Matemático - UNTREF", layout="wide")
 
