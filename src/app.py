@@ -244,31 +244,45 @@ try:
             st.plotly_chart(fig, use_container_width=True)
 
         else:
-            # --- BLOQUE RESTAURADO: GRÁFICO 2D AM1 (Tangente + Riemann + Escala) ---
+            # --- GRÁFICO 2D AM1 (Tangente + Riemann + Escala Inteligente) ---
             xv = np.linspace(px - 5, px + 5, 500)
             yv = data["f_np"](xv)
+            
+            # --- Ruptura de Asíntotas ---
+            # Evita la línea vertical recta en funciones racionales como 1/(x-1)
+            yv_plot = np.copy(yv)
+            diffs = np.abs(np.diff(yv))
+            # Si el salto entre un punto y otro es mayor a 50, rompemos la línea (NaN)
+            yv_plot[1:][diffs > 50] = np.nan 
+            
             fig1d = go.Figure()
             
-            # 1. Dibujar la función original (Azul)
-            fig1d.add_trace(go.Scatter(x=xv, y=yv, name="f(x)", line=dict(color='#1f77b4', width=3)))
+            # Dibujar la función original (Azul) con el filtro aplicado
+            fig1d.add_trace(go.Scatter(x=xv, y=yv_plot, name="f(x)", line=dict(color='#1f77b4', width=3)))
             
-            # 2. Calcular Taylor para el gráfico
+            # --- 2. Calcular Taylor ---
             pasos_taylor = get_taylor_step_by_step(data['f_sym'], px, grado_taylor)
             polinomio_final = sum([p['termino_completo'] for p in pasos_taylor])
             
             try:
                 t_np = sp.lambdify(sp.Symbol('x'), polinomio_final, 'numpy')
                 yt_vals = t_np(xv) if not isinstance(t_np(xv), (int, float)) else np.full_like(xv, t_np(xv))
-                fig1d.add_trace(go.Scatter(x=xv, y=yt_vals, name="Taylor", line=dict(dash='dash', color='red')))
+                
+                # También rompemos el gráfico de Taylor si se dispara abruptamente
+                yt_plot = np.copy(yt_vals)
+                diffs_t = np.abs(np.diff(yt_vals))
+                yt_plot[1:][diffs_t > 50] = np.nan
+                
+                fig1d.add_trace(go.Scatter(x=xv, y=yt_plot, name="Taylor", line=dict(dash='dash', color='red')))
             except:
                 pass
 
-            # 3. Dibujar Recta Tangente (Naranja)
+            # --- 3. Dibujar Recta Tangente ---
             if ver_tangente_am1 and not np.isnan(data['fx_v']):
                 y_tan = data['z0'] + data['fx_v'] * (xv - px)
                 fig1d.add_trace(go.Scatter(x=xv, y=y_tan, name="Tangente", line=dict(color='orange', dash='dot')))
 
-            # 4. Dibujar Sumas de Riemann (Cuadrados verdes)
+            # --- 4. Dibujar Sumas de Riemann ---
             if ver_riemann:
                 delta_x = (lim_b - lim_a) / n_rects
                 xr = np.linspace(lim_a, lim_b, n_rects, endpoint=False)
@@ -279,15 +293,32 @@ try:
                         fillcolor="rgba(0, 255, 0, 0.3)", line=dict(color="green", width=1)
                     )
 
-            # 5. Punto de estudio (Diamante Negro)
+            # --- 5. Punto de estudio ---
             fig1d.add_trace(go.Scatter(x=[px], y=[data['z0']], mode='markers+text', text=["P0"], 
                                       marker=dict(size=12, color='black', symbol='diamond')))
             
-            # 6. Escala Blindada: Evita que Taylor aplaste la función original
-            y_min, y_max = np.nanmin(yv), np.nanmax(yv)
-            if not np.isnan(y_min):
-                margen = (y_max - y_min) * 0.5 if y_max != y_min else 5
-                fig1d.update_yaxes(range=[y_min - margen, y_max + margen])
+            # --- 6. ESCALA INTELIGENTE (El gran fix visual) ---
+            y_valid = yv[np.isfinite(yv)]
+            if len(y_valid) > 0:
+                # Calculamos percentiles para ignorar los infinitos o las explosiones exponenciales
+                p5, p95 = np.percentile(y_valid, 5), np.percentile(y_valid, 95)
+                margen = max((p95 - p5) * 0.2, 5.0)
+                
+                y_min_plot = p5 - margen
+                y_max_plot = p95 + margen
+
+                if not np.isnan(data['z0']):
+                    # Si incluso cortando el 10% de los extremos la escala es inmensa,
+                    # hacemos un "zoom forzado" alrededor del punto de análisis P0
+                    if (y_max_plot - y_min_plot) > 100:
+                        y_min_plot = data['z0'] - 20
+                        y_max_plot = data['z0'] + 20
+                    else:
+                        # Aseguramos que el punto de estudio siempre quede en cámara
+                        y_min_plot = min(y_min_plot, data['z0'] - 5)
+                        y_max_plot = max(y_max_plot, data['z0'] + 5)
+
+                fig1d.update_yaxes(range=[y_min_plot, y_max_plot])
 
             fig1d.update_layout(height=650, title="Visualización Análisis I")
             st.plotly_chart(fig1d, use_container_width=True)
