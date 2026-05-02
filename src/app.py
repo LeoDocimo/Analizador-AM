@@ -3,10 +3,10 @@ import numpy as np
 import plotly.graph_objects as go
 import sympy as sp
 try:
-    from math_engine import compute_analytics, analyze_polares_process, compute_directional, get_taylor_step_by_step
+    from math_engine import compute_analytics, analyze_polares_process, compute_directional, get_taylor_step_by_step, get_full_analysis
     from plotter import create_3d_plot
 except ImportError:
-    from src.math_engine import compute_analytics, analyze_polares_process, compute_directional, get_taylor_step_by_step
+    from src.math_engine import compute_analytics, analyze_polares_process, compute_directional, get_taylor_step_by_step, get_full_analysis
     from src.plotter import create_3d_plot
 
 st.set_page_config(page_title="Analizador Matemático - UNTREF", layout="wide")
@@ -70,8 +70,14 @@ else:
     # --- MODO AM1: INTERFAZ PEDAGÓGICA ---
     st.sidebar.subheader("📝 Configuración AM1")
     presets_am1 = {
-        "Personalizada": "", "Seno de x²": "sin(x**2)", "Exponencial x³": "exp(x**3)",
-        "Logaritmo Natural": "log(x)", "Función Racional": "1/(x-1)", "Raíz Cuadrada": "sqrt(x+2)"
+        "Personalizada": "", 
+        "Seno de x²": "sin(x**2)", 
+        "Exponencial x³": "exp(x**3)",
+        "Logaritmo Natural": "log(x)", 
+        "Función Racional": "1/(x-1)", 
+        "Raíz Cuadrada": "sqrt(x+2)",
+        "Valor Absoluto (Módulo)": "Abs(x)",
+        "Función a Trozos": "Piecewise((x**2, x < 1), (2*x, x >= 1))"
     }
     sel_am1 = st.sidebar.selectbox("Funciones predeterminadas:", list(presets_am1.keys()))
     func_input = st.sidebar.text_input("f(x):", value=presets_am1[sel_am1] if presets_am1[sel_am1] else "sin(x**2)")
@@ -98,9 +104,13 @@ try:
 
     with col_calc:
         # ---COMPROBACIÓN DE DOMINIO ---
+        # ---COMPROBACIÓN DE DOMINIO ---
         if np.isnan(data['z0']):
-            st.error(f"❌ El punto $x_0 = {px}$ está fuera del dominio de la función.")
-            st.warning("No es posible calcular Taylor, Derivadas o Continuidad en este valor.")
+            if modo == "Análisis Matemático II":
+                st.error(f"❌ El punto $(x_0, y_0) = ({px}, {py})$ está fuera del dominio de la función.")
+            else:
+                st.error(f"❌ El punto $x_0 = {px}$ está fuera del dominio de la función.")
+            st.warning("No es posible realizar el análisis en este valor (Indeterminación o Complejo).")
             st.stop() # Esto detiene la ejecución de los tabs para que no tiren error
         # ------------------------------------
 
@@ -111,7 +121,7 @@ try:
             if ver_polares:
                 f_sub, f_simp, lim_r = analyze_polares_process(data['f_sym'])
                 with st.expander("🌀 Proceso: Cambio a Polares", expanded=True):
-                    st.write("**1. Sustitución:** $x = r\\cos\\theta, \quad y = r\\sin\\theta$")
+                    st.write(r"1. Sustitución: $x = r\cos\theta, \quad y = r\sin\theta$")
                     st.latex(rf"f(r, \theta) = {sp.latex(f_sub)}")
                     st.write("**2. Simplificación:**")
                     st.latex(rf"f(r, \theta) = {sp.latex(f_simp)}")
@@ -155,7 +165,8 @@ try:
         else:
             # --- TABS PEDAGÓGICOS AM1 ---
             st.markdown(f"### 📐 Función Analizada:\n$$f(x) = {sp.latex(data['f_sym'])}$$")
-            tabs = st.tabs(["📉 Derivada y Tangente", "📝 Taylor Paso a Paso", "⚖️ Continuidad", "∫ Integración (Barrow)"])
+            # --- ACTUALIZAR LA LISTA DE TABS ---
+            tabs = st.tabs(["📉 Derivada y Tangente", "📝 Taylor", "⚖️ Continuidad", "∫ Integración", "🔎 Estudio Completo"])
             
             with tabs[0]:
                 st.subheader("La Recta Tangente")
@@ -181,7 +192,12 @@ try:
                         st.write("**Derivada simbólica:**")
                         st.latex(sp.latex(p['derivada_simbolica']))
                         st.write(f"**Evaluada en $x_0 = {px}$:**")
-                        st.latex(rf"f^{{({p['orden']})}}({px}) = {float(p['valor_evaluado']):.4f}")
+                        try:
+                            # Forzamos evaluación numérica con evalf()
+                            val_num = float(p['valor_evaluado'].evalf())
+                            st.latex(rf"f^{{({p['orden']})}}({px}) = {val_num:.4f}")
+                        except:
+                            st.latex(rf"f^{{({p['orden']})}}({px}) = \text{{Indefinido}}")
                         st.write("**Término resultante:**")
                         st.latex(sp.latex(p['termino_completo']))
                 
@@ -190,38 +206,215 @@ try:
                 st.latex(sp.latex(polinomio_final))
 
             with tabs[2]:
-                st.subheader("Estudio de Continuidad")
-                st.write(f"Verificando condiciones en $x_0 = {px}$:")
-                if np.isnan(data['z0']): 
-                    st.error(f"❌ 1. La imagen $f({px})$ no existe.")
-                else: 
-                    st.success(f"✅ 1. Imagen: $f({px}) = {data['z0']:.4f}$")
+                st.subheader("Análisis Gráfico de Límites y Continuidad")
                 
-                st.write("**2. Límites laterales:**")
-                st.latex(rf"L^- = {sp.latex(data['lim_izq'])} \quad | \quad L^+ = {sp.latex(data['lim_der'])}")
+                # --- DETECCIÓN DE FUNCIÓN A TROZOS ---
+                if "Piecewise" in str(data['f_sym']):
+                    st.info("💡 **Nota:** Has ingresado una función a trozos. El análisis de continuidad es clave en los puntos donde cambia la regla (por ejemplo, en $x=1$). Usa el deslizador para estudiar ese punto exacto.")
+                # -------------------------------------
                 
-                if data['lim_izq'] == data['lim_der'] == data['z0']:
-                    st.success("✔ Los valores coinciden. La función es **Continua**.")
+                st.write(f"Estudiamos el comportamiento de la función en el entorno de $x_0 = {px}$:")
+                
+                # --- LÓGICA DE GRÁFICO DE LÍMITES ---
+                # Creamos un zoom mucho más cerrado alrededor de px
+                x_env = np.linspace(px - 1.5, px + 1.5, 400)
+                y_env = data["f_np"](x_env)
+                
+                fig_lim = go.Figure()
+                
+                # 1. Dibujar la función
+                fig_lim.add_trace(go.Scatter(x=x_env, y=y_env, name="f(x)", line=dict(color='#1f77b4', width=3)))
+                
+                # 2. Dibujar indicadores de límites laterales (si son finitos)
+                try:
+                    l_izq = float(data['lim_izq'])
+                    l_der = float(data['lim_der'])
+                    
+                    # Línea desde la izquierda
+                    fig_lim.add_trace(go.Scatter(x=[px-1, px], y=[l_izq, l_izq], 
+                                                mode='lines', name="Límite Izq",
+                                                line=dict(color='green', dash='dot')))
+                    # Línea desde la derecha
+                    fig_lim.add_trace(go.Scatter(x=[px, px+1], y=[l_der, l_der], 
+                                                mode='lines', name="Límite Der",
+                                                line=dict(color='orange', dash='dot')))
+                except: pass
+
+                # 3. Punto de la imagen real f(x0)
+                if not np.isnan(data['z0']):
+                    fig_lim.add_trace(go.Scatter(x=[px], y=[data['z0']], mode='markers',
+                                                marker=dict(size=12, color='blue', symbol='circle'),
+                                                name=f"Imagen f({px})"))
                 else:
-                    st.error("❌ Discontinuidad detectada.")
+                    # Si no hay imagen, dibujamos un círculo vacío (punto abierto)
+                    fig_lim.add_trace(go.Scatter(x=[px], y=[l_izq if 'l_izq' in locals() else 0], 
+                                                mode='markers',
+                                                marker=dict(size=12, color='red', symbol='circle-open'),
+                                                name="Punto Abierto"))
+
+                fig_lim.update_layout(height=400, title="Zoom del Entorno de x0", showlegend=True)
+                st.plotly_chart(fig_lim, width='stretch')
+
+                # --- EXPLICACIÓN TEÓRICA PASO A PASO ---
+                st.divider()
+                col_l, col_r = st.columns(2)
+                with col_l:
+                    st.write("**1. Límites Laterales:**")
+                    st.latex(rf"\lim_{{x \to {px}^-}} f(x) = {sp.latex(data['lim_izq'])}")
+                    st.latex(rf"\lim_{{x \to {px}^+}} f(x) = {sp.latex(data['lim_der'])}")
+                
+                with col_r:
+                    st.write("**2. Existencia de Imagen:**")
+                    if np.isnan(data['z0']):
+                        st.error(f"❌ $f({px})$ no existe.")
+                    else:
+                        st.success(f"✅ $f({px}) = {data['z0']:.4f}$")
+
+                # Conclusión de Continuidad
+                # Conclusión de Continuidad
+                try:
+                    l_i = float(data['lim_izq'])
+                    l_d = float(data['lim_der'])
+                    z_v = float(data['z0'])
+                    
+                    # Verificamos que sean números finitos y que la diferencia entre ellos sea casi cero
+                    if np.isfinite(l_i) and np.isfinite(l_d) and np.isfinite(z_v) and \
+                       np.isclose(l_i, l_d, atol=1e-4) and np.isclose(l_d, z_v, atol=1e-4):
+                        st.success(f"**Conclusión:** La función es **Continua** en $x = {px}$ porque los límites laterales coinciden con la imagen.")
+                    else:
+                        st.warning("**Conclusión:** Hay una **Discontinuidad**. Observa en el gráfico si los límites 'se encuentran' o si hay un salto.")
+                except:
+                    # Si falla al convertir a número (ej. el límite dio infinito o la imagen es compleja)
+                    st.warning("**Conclusión:** Hay una **Discontinuidad** (límite infinito o imagen no real).")
 
             with tabs[3]:
-                st.subheader("Regla de Barrow")
-                st.write("Integral definida mediante la primitiva:")
-                st.latex(r"\int_a^b f(x) dx = F(b) - F(a)")
+                st.subheader("Integración y Regla de Barrow")
+                st.write("El cálculo de la integral definida consta de hallar la primitiva y evaluarla en los extremos del intervalo.")
+                
                 if data.get('primitiva'):
-                    st.write("**1. Función Primitiva $F(x)$:**")
-                    st.latex(rf"F(x) = {sp.latex(data['primitiva'])} + C")
-                    st.write(f"**2. Evaluación en $[{lim_a}, {lim_b}]$:**")
-                    try:
-                        fa = float(data['primitiva'].subs(sp.Symbol('x'), lim_a))
-                        fb = float(data['primitiva'].subs(sp.Symbol('x'), lim_b))
-                        st.latex(rf"F({lim_b}) - F({lim_a}) = {fb:.4f} - ({fa:.4f})")
-                        st.info(rf"**Área Total:** {fb - fa:.4f}")
-                    except:
-                        st.warning("Error al evaluar límites numéricamente.")
+                    with st.expander("1️⃣ Paso 1: Integral Indefinida (Primitiva)", expanded=True):
+                        st.write("Buscamos la familia de primitivas aplicando las reglas de integración:")
+                        st.latex(rf"\int {sp.latex(data['f_sym'])} \, dx = {sp.latex(data['primitiva'])} + C")
+                        
+                        # --- TRADUCTOR INTELIGENTE DE INTEGRALES ---
+                        prim_str = str(data['primitiva'])
+                        if any(func in prim_str.lower() for func in ["erf", "fresnel", "gamma", "si(", "ci("]):
+                            st.info("💡 **Aviso sobre este resultado:** Esta función no posee una primitiva que pueda expresarse mediante funciones matemáticas simples. SymPy debió utilizar **Funciones Especiales** (como la función Gamma o las integrales de Fresnel) para resolverla de forma exacta. ¡Por eso se ve tan compleja!")
+
+                    with st.expander("2️⃣ Paso 2: Teorema Fundamental del Cálculo", expanded=True):
+                        st.write("La Regla de Barrow establece que:")
+                        st.latex(rf"\int_{{{lim_a}}}^{{{lim_b}}} f(x) \, dx = \left[ F(x) \right]_{{{lim_a}}}^{{{lim_b}}} = F({lim_b}) - F({lim_a})")
+                        
+                    with st.expander("3️⃣ Paso 3: Evaluación y Sustitución", expanded=True):
+                        try:
+                            # Reemplazos simbólicos explícitos
+                            F_b_sym = data['primitiva'].subs(sp.Symbol('x'), lim_b)
+                            F_a_sym = data['primitiva'].subs(sp.Symbol('x'), lim_a)
+                            
+                            st.write(f"👉 **Evaluando el límite superior ($b = {lim_b}$):**")
+                            st.latex(rf"F({lim_b}) = {sp.latex(F_b_sym)}")
+                            
+                            st.write(f"👉 **Evaluando el límite inferior ($a = {lim_a}$):**")
+                            st.latex(rf"F({lim_a}) = {sp.latex(F_a_sym)}")
+                            
+                            st.divider()
+                            fa = float(data['primitiva'].subs(sp.Symbol('x'), lim_a).evalf())
+                            fb = float(data['primitiva'].subs(sp.Symbol('x'), lim_b).evalf())
+                            st.write("**Realizamos la resta final:**")
+                            st.latex(rf"F({lim_b}) - F({lim_a}) = {fb:.4f} - ({fa:.4f})")
+                            st.success(rf"**Resultado del Área / Integral:** {fb - fa:.4f}")
+                        except:
+                            st.warning("El cálculo numérico es demasiado complejo para ser evaluado numéricamente en este intervalo.")
                 else:
-                    st.warning("No se halló primitiva analítica.")
+                    st.warning("No se halló una primitiva analítica. La integral debe resolverse por métodos de aproximación numérica (ej. Sumas de Riemann).")
+
+            with tabs[4]:
+                st.subheader("Estudio Completo Paso a Paso")
+                analisis = get_full_analysis(data['f_sym'])
+                
+                with st.expander("1️⃣ Dominio", expanded=True):
+                    st.write("**Cálculo Analítico del Dominio:**")
+                    if analisis['denominador'] != 1:
+                        st.write("Identificamos un denominador en la función. Para que exista, el denominador no puede ser cero:")
+                        st.latex(rf"{sp.latex(analisis['denominador'])} \neq 0")
+                        try:
+                            sing = sp.solveset(analisis['denominador'], sp.Symbol('x'), domain=S.Reals)
+                            if isinstance(sing, sp.FiniteSet) and len(sing) > 0:
+                                st.write("Despejando, vemos que la función se rompe en:")
+                                st.latex(rf"x \notin {sp.latex(sing)}")
+                        except: pass
+                    else:
+                        st.write("No se identificaron denominadores polinómicos (no hay divisiones por cero evidentes).")
+                        
+                    if analisis['dominio'] is not None:
+                        st.success("**Resultado:**")
+                        st.latex(rf"\text{{Dom}}(f) = {sp.latex(analisis['dominio'])}")
+                    else:
+                        st.info("El cálculo requiere análisis numérico complejo.")
+                
+                with st.expander("2️⃣ Raíces y Conjuntos ($C^+, C^-$)", expanded=True):
+                    st.write("**Paso 1: Igualar a cero para hallar Raíces ($C^0$).**")
+                    st.latex(rf"{sp.latex(data['f_sym'])} = 0")
+                    if analisis['raices'] is not None and not isinstance(analisis['raices'], sp.ConditionSet):
+                        latex_raices = sp.latex(analisis['raices'])
+                        st.latex(rf"C^0 = {latex_raices}")
+                        
+                        if r"\mathbb{Z}" in latex_raices or "ImageSet" in str(analisis['raices']):
+                            st.info("💡 **¿Qué significa este resultado?**\nComo la función es periódica (tiene ondas), cruza el eje X infinitas veces. Esa fórmula general te permite calcular la posición de cualquier raíz simplemente reemplazando la $n$ por números enteros ($0, 1, 2, -1, -2 \dots$).")
+                    else:
+                        st.info("No se pudo resolver de forma analítica.")
+                    
+                    if analisis['bolzano']:
+                        for b in analisis['bolzano']:
+                            inter_str = f"({b['intervalo'][0]:.2f}, {b['intervalo'][1]:.2f})".replace('inf', r'\infty')
+                            st.write(f"🔹 **Intervalo** ${inter_str}$ 👉 Elegimos $x_p = {b['pt']:.2f}$")
+                            
+                            # FIX 3: Evitar renderizar "NaN" si el punto de prueba no es real
+                            if not np.isnan(b['valor']):
+                                st.latex(rf"f({b['pt']:.2f}) = {b['valor']:.4f} \quad \rightarrow \quad \text{{Pertenece a }} {b['signo']}")
+                            else:
+                                st.latex(rf"f({b['pt']:.2f}) \notin \mathbb{{R}} \quad \rightarrow \quad \text{{{b['signo']}}}")
+                    else:
+                        st.info("No se pudieron generar los intervalos automáticamente.")
+                    
+                    st.divider()
+                    st.write("**Paso 2: Teorema de Bolzano para Positividad/Negatividad.**")
+                    st.write("Según el Teorema de Bolzano, si $f$ es continua en un intervalo y no tiene raíces allí, conserva el mismo signo en todo el intervalo.")
+                    st.write("Para hallar $C^+$ y $C^-$, volcá las **raíces** y los puntos fuera del **dominio** en una recta real, y evaluá un punto de prueba en cada intervalo formado.")
+
+                with st.expander("3️⃣ Crecimiento y Extremos (Máximos y Mínimos)", expanded=True):
+                    st.write("**Paso 1: Puntos Críticos ($f'(x) = 0$).**")
+                    st.write("Punto candidato a ser máximo o mínimo de la función.")
+                    st.latex(rf"f'(x) = {sp.latex(analisis['fx'])} = 0")
+                    
+                    if analisis['p_criticos'] is not None and not isinstance(analisis['p_criticos'], sp.ConditionSet):
+                        latex_criticos = sp.latex(analisis['p_criticos'])
+                        st.latex(rf"x_c \in {latex_criticos}")
+                        
+                        # --- EL TRADUCTOR INTELIGENTE ---
+                        if r"\mathbb{Z}" in latex_criticos or "ImageSet" in str(analisis['p_criticos']):
+                            st.info("💡 **Aviso sobre funciones periódicas:**\nAl igual que con las raíces, la función tiene **infinitos 'picos' y 'valles'**. La letra $n$ en la fórmula te indica que hay un punto crítico nuevo en cada ciclo de la onda.")
+                        # ---------------------------------
+                        
+                        st.divider()
+                        st.write("**Paso 2: Criterio de la Derivada Segunda.**")
+                        st.write("Para clasificar, evaluamos cada punto crítico en $f''(x)$:")
+                        st.latex(rf"f''(x) = {sp.latex(analisis['fxx'])}")
+                        
+                        if analisis['clasificacion']:
+                            for item in analisis['clasificacion']:
+                                st.write(f"👉 **En $x = {sp.latex(item['x'])}$:**")
+                                st.latex(rf"f''({sp.latex(item['x'])}) = {sp.latex(item['fxx_val'])}")
+                                if item['fxx_val'] > 0:
+                                    st.success(f"Como $f''(x) > 0$, la curva es cóncava hacia arriba. Hay un **{item['tipo']}**.")
+                                elif item['fxx_val'] < 0:
+                                    st.error(f"Como $f''(x) < 0$, la curva es cóncava hacia abajo. Hay un **{item['tipo']}**.")
+                                else:
+                                    st.warning(f"Criterio no concluyente. Posible {item['tipo']}.")
+                        else:
+                            st.write("No hay puntos críticos finitos para evaluar.")
+                    else:
+                        st.info("No se pudo resolver $f'(x) = 0$ algebraicamente.")
 
     with col_graph:
         if modo == "Análisis Matemático II":
@@ -241,7 +434,7 @@ try:
 
             fig = create_3d_plot(X, Y, data['f_np'](X,Y), px, py, data['z0'], data, config)
             fig.update_layout(height=650)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
         else:
             # --- GRÁFICO 2D AM1 (Tangente + Riemann + Escala Inteligente) ---
@@ -288,10 +481,12 @@ try:
                 xr = np.linspace(lim_a, lim_b, n_rects, endpoint=False)
                 yr_r = data["f_np"](xr)
                 for i in range(len(xr)):
-                    fig1d.add_shape(
-                        type="rect", x0=xr[i], y0=0, x1=xr[i]+delta_x, y1=yr_r[i],
-                        fillcolor="rgba(0, 255, 0, 0.3)", line=dict(color="green", width=1)
-                    )
+                    # FIX: Solo dibuja el rectángulo si la altura es un número real válido
+                    if np.isfinite(yr_r[i]):
+                        fig1d.add_shape(
+                            type="rect", x0=xr[i], y0=0, x1=xr[i]+delta_x, y1=yr_r[i],
+                            fillcolor="rgba(0, 255, 0, 0.3)", line=dict(color="green", width=1)
+                        )
 
             # --- 5. Punto de estudio ---
             fig1d.add_trace(go.Scatter(x=[px], y=[data['z0']], mode='markers+text', text=["P0"], 
@@ -321,7 +516,7 @@ try:
                 fig1d.update_yaxes(range=[y_min_plot, y_max_plot])
 
             fig1d.update_layout(height=650, title="Visualización Análisis I")
-            st.plotly_chart(fig1d, use_container_width=True)
+            st.plotly_chart(fig1d, width="stretch")
     if modo == "Análisis Matemático II":
         # --- DASHBOARD INTEGRAL AM2 (RESTAURADO) ---
         st.divider()
@@ -337,7 +532,7 @@ try:
                 xr = np.linspace(px-5, px+5, 80); yr = np.linspace(py-5, py+5, 80)
                 X_c, Y_c = np.meshgrid(xr, yr)
                 fig_c = go.Figure(data=go.Contour(x=xr, y=yr, z=data['f_np'](X_c, Y_c), colorscale='Viridis'))
-                st.plotly_chart(fig_c, use_container_width=True)
+                st.plotly_chart(fig_c, width="stretch")
                 
                 with st.expander("💡 ¿Qué nos dicen las Curvas de Nivel?", expanded=True):
                     st.write("Las curvas de nivel representan los cortes de la superficie con planos $z = k$.")
@@ -353,7 +548,7 @@ try:
                 f2d = go.Figure()
                 f2d.add_trace(go.Scatter(x=yr, y=data['f_np'](px, yr), name=f"Traza x={px} (Variando y)"))
                 f2d.add_trace(go.Scatter(x=xr, y=data['f_np'](xr, py), name=f"Traza y={py} (Variando x)"))
-                st.plotly_chart(f2d, use_container_width=True)
+                st.plotly_chart(f2d, width="stretch")
                 
                 with st.expander("💡 ¿Qué nos dicen las Trazas?", expanded=True):
                     st.write(f"Al fijar una variable, reducimos la función a 1D, permitiendo ver las pendientes parciales:")
