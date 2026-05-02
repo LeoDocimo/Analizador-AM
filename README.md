@@ -1,4 +1,4 @@
-# Analizador AM2 Pro - UNTREF 📐
+# Analizador AM2
 
 Herramienta de visualización y análisis de superficies para Análisis Matemático II. 
 
