@@ -93,6 +93,13 @@ try:
     col_calc, col_graph = st.columns([1.3, 2])
 
     with col_calc:
+        # ---COMPROBACIÓN DE DOMINIO ---
+        if np.isnan(data['z0']):
+            st.error(f"❌ El punto $x_0 = {px}$ está fuera del dominio de la función.")
+            st.warning("No es posible calcular Taylor, Derivadas o Continuidad en este valor.")
+            st.stop() # Esto detiene la ejecución de los tabs para que no tiren error
+        # ------------------------------------
+
         if modo == "Análisis Matemático II":
             st.markdown(f"### 📐 Función Analizada:\n$f(x,y) = {sp.latex(data['f_sym'])}$")
             
@@ -233,39 +240,52 @@ try:
             st.plotly_chart(fig, use_container_width=True)
 
         else:
-            # --- GRÁFICO 2D AM1 CON TANGENTE ---
-            xv = np.linspace(px-5, px+5, 500)
+            # --- BLOQUE RESTAURADO: GRÁFICO 2D AM1 (Tangente + Riemann + Escala) ---
+            xv = np.linspace(px - 5, px + 5, 500)
             yv = data["f_np"](xv)
             fig1d = go.Figure()
             
-            # 1. Función Original (Azul)
+            # 1. Dibujar la función original (Azul)
             fig1d.add_trace(go.Scatter(x=xv, y=yv, name="f(x)", line=dict(color='#1f77b4', width=3)))
             
-            # 2. Polinomio de Taylor (Rojo)
-            # Calculamos los pasos aquí para asegurar que 'polinomio_final' exista para el gráfico
-            pasos = get_taylor_step_by_step(data['f_sym'], px, grado_taylor)
-            polinomio_final = sum([p['termino_completo'] for p in pasos])
+            # 2. Calcular Taylor para el gráfico
+            pasos_taylor = get_taylor_step_by_step(data['f_sym'], px, grado_taylor)
+            polinomio_final = sum([p['termino_completo'] for p in pasos_taylor])
             
-            t_np = sp.lambdify(sp.Symbol('x'), polinomio_final, 'numpy')
-            yt = t_np(xv) if not isinstance(t_np(xv), (int, float)) else np.full_like(xv, t_np(xv))
-            fig1d.add_trace(go.Scatter(x=xv, y=yt, name="Taylor", line=dict(dash='dash', color='red')))
+            try:
+                t_np = sp.lambdify(sp.Symbol('x'), polinomio_final, 'numpy')
+                yt_vals = t_np(xv) if not isinstance(t_np(xv), (int, float)) else np.full_like(xv, t_np(xv))
+                fig1d.add_trace(go.Scatter(x=xv, y=yt_vals, name="Taylor", line=dict(dash='dash', color='red')))
+            except:
+                pass
 
-            # 3. RECTA TANGENTE (Naranja) - Solo si el checkbox está activo
-            # Usamos 'ver_tangente_am1' que es la variable del sidebar
+            # 3. Dibujar Recta Tangente (Naranja)
             if ver_tangente_am1 and not np.isnan(data['fx_v']):
                 y_tan = data['z0'] + data['fx_v'] * (xv - px)
                 fig1d.add_trace(go.Scatter(x=xv, y=y_tan, name="Tangente", line=dict(color='orange', dash='dot')))
 
-            # 4. Punto de estudio (Diamante Negro)
+            # 4. Dibujar Sumas de Riemann (Cuadrados verdes)
+            if ver_riemann:
+                delta_x = (lim_b - lim_a) / n_rects
+                xr = np.linspace(lim_a, lim_b, n_rects, endpoint=False)
+                yr_r = data["f_np"](xr)
+                for i in range(len(xr)):
+                    fig1d.add_shape(
+                        type="rect", x0=xr[i], y0=0, x1=xr[i]+delta_x, y1=yr_r[i],
+                        fillcolor="rgba(0, 255, 0, 0.3)", line=dict(color="green", width=1)
+                    )
+
+            # 5. Punto de estudio (Diamante Negro)
             fig1d.add_trace(go.Scatter(x=[px], y=[data['z0']], mode='markers+text', text=["P0"], 
                                       marker=dict(size=12, color='black', symbol='diamond')))
             
-            # 5. Ajuste de escala automático para que Taylor no "aplane" la función
+            # 6. Escala Blindada: Evita que Taylor aplaste la función original
             y_min, y_max = np.nanmin(yv), np.nanmax(yv)
             if not np.isnan(y_min):
-                fig1d.update_yaxes(range=[y_min-5, y_max+5])
-            
-            fig1d.update_layout(height=600, title="Visualización AM1", xaxis_title="x", yaxis_title="y")
+                margen = (y_max - y_min) * 0.5 if y_max != y_min else 5
+                fig1d.update_yaxes(range=[y_min - margen, y_max + margen])
+
+            fig1d.update_layout(height=650, title="Visualización Análisis I")
             st.plotly_chart(fig1d, use_container_width=True)
     if modo == "Análisis Matemático II":
         # --- DASHBOARD INTEGRAL AM2 (RESTAURADO) ---
