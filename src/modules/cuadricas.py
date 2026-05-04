@@ -203,7 +203,6 @@ def render_cuadricas_interactivo():
     fig.add_trace(go.Surface(x=px, y=py, z=np.full_like(px, z_slice), colorscale="Greys", opacity=0.3, showscale=False, hoverinfo='skip'))
 
     t = np.linspace(0, 2*np.pi, 150)
-    traza_valida = False
     traza_msg = ""
 
     # Calcular lado derecho (RHS)
@@ -217,11 +216,10 @@ def render_cuadricas_interactivo():
         if rhs > 0:
             rx, ry = a * np.sqrt(rhs), b * np.sqrt(rhs)
             xc, yc = h + rx * np.cos(t), k + ry * np.sin(t)
-            traza_valida = True
+            fig.add_trace(go.Scatter3d(x=xc, y=yc, z=np.full_like(xc, z_slice), mode='lines', line=dict(color='yellow', width=6)))
             traza_msg = f"🟢 **Traza en Z={z_slice}:** Elipse (Semiejes: {rx:.2f}, {ry:.2f})"
         elif rhs == 0:
-            xc, yc = [h], [k]
-            traza_valida = True
+            fig.add_trace(go.Scatter3d(x=[h], y=[k], z=[z_slice], mode='markers', marker=dict(color='yellow', size=6)))
             traza_msg = f"🟡 **Traza en Z={z_slice}:** Punto (Vértice)"
         else:
             traza_msg = f"🔴 **Traza en Z={z_slice}:** Conjunto Vacío"
@@ -237,71 +235,28 @@ def render_cuadricas_interactivo():
                 xc1, yc1 = h + a * sc * np.sinh(t_h), k + b * sc * np.cosh(t_h)
                 xc2, yc2 = h + a * sc * np.sinh(t_h), k - b * sc * np.cosh(t_h)
             
-            fig.add_trace(go.Scatter3d(x=xc1, y=yc1, z=np.full_like(xc1, z_slice), mode='lines', line=dict(color='yellow', width=8)))
-            fig.add_trace(go.Scatter3d(x=xc2, y=yc2, z=np.full_like(xc2, z_slice), mode='lines', line=dict(color='yellow', width=8)))
-            traza_valida = True
+            fig.add_trace(go.Scatter3d(x=xc1, y=yc1, z=np.full_like(xc1, z_slice), mode='lines', line=dict(color='yellow', width=6)))
+            fig.add_trace(go.Scatter3d(x=xc2, y=yc2, z=np.full_like(xc2, z_slice), mode='lines', line=dict(color='yellow', width=6)))
             traza_msg = f"🟢 **Traza en Z={z_slice}:** Hipérbola con centro en ({h}, {k})"
         else:
             x_line = np.linspace(h-limit, h+limit, 100)
             m = (b/a)
             y_line1, y_line2 = k + m * (x_line - h), k - m * (x_line - h)
-            fig.add_trace(go.Scatter3d(x=x_line, y=y_line1, z=np.full_like(x_line, z_slice), mode='lines', line=dict(color='yellow', width=8)))
-            fig.add_trace(go.Scatter3d(x=x_line, y=y_line2, z=np.full_like(x_line, z_slice), mode='lines', line=dict(color='yellow', width=8)))
-            traza_valida = True
+            fig.add_trace(go.Scatter3d(x=x_line, y=y_line1, z=np.full_like(x_line, z_slice), mode='lines', line=dict(color='yellow', width=6)))
+            fig.add_trace(go.Scatter3d(x=x_line, y=y_line2, z=np.full_like(x_line, z_slice), mode='lines', line=dict(color='yellow', width=6)))
             traza_msg = f"🟡 **Traza en Z={z_slice}:** Par de rectas cruzadas en ({h}, {k})"
-
-    if traza_valida:
-        fig.add_trace(go.Scatter3d(x=xc, y=yc, z=np.full_like(xc, z_slice), mode='lines' if len(xc)>1 else 'markers', line=dict(color='yellow', width=6), marker=dict(color='yellow', size=6)))
-
-    # 4. TRAZA REAL (Cálculo Físico de la Intersección)
-    t = np.linspace(0, 2*np.pi, 150)
-    traza_valida = False
-
-    if familia == "Centradas (Elipsoides/Hiperboloides)":
-        # Despejamos el lado derecho: RHS = 1 - (z-l)^2 / c^2 (Para elipsoide)
-        z_term = ((z_slice - l)**2 / c**2) * (1 if sz == "+" else -1)
-        rhs = 1 - z_term
-        
-        if sx == "+" and sy == "+": # Elipse
-            if rhs > 0:
-                xc = h + a * np.sqrt(rhs) * np.cos(t)
-                yc = k + b * np.sqrt(rhs) * np.sin(t)
-                traza_valida = True
-                traza_msg = f"🟢 **Traza en Z={z_slice}:** Elipse de radios escalados."
-            elif rhs == 0:
-                xc, yc = [h], [k]
-                traza_valida = True
-                traza_msg = f"🟡 **Traza en Z={z_slice}:** Un solo punto (Polo/Vértice)."
-            else:
-                traza_msg = f"🔴 **Traza en Z={z_slice}:** Vacío (El plano no toca la figura)."
-                
-    elif familia == "Paraboloides":
-        # z - l = c*(x^2/a^2 + y^2/b^2) => RHS = (z_slice - l)/c
-        rhs = (z_slice - l) / c
-        if sx == "+" and sy == "+":
-            if rhs >= 0:
-                xc = h + a * np.sqrt(rhs) * np.cos(t)
-                yc = k + b * np.sqrt(rhs) * np.sin(t)
-                traza_valida = True
-                traza_msg = f"🟢 **Traza en Z={z_slice}:** Elipse."
-            else:
-                traza_msg = f"🔴 **Traza en Z={z_slice}:** Vacío (No hay figura a esta altura)."
-
-    if traza_valida:
-        zc = np.full_like(xc, z_slice)
-        fig.add_trace(go.Scatter3d(
-            x=xc, y=yc, z=zc, mode='lines' if len(xc) > 1 else 'markers',
-            line=dict(color='#00ff87', width=8), marker=dict(color='yellow', size=8), name='Traza Z'
-        ))
-    else:
-        # Fallback si no está programado el caso analítico (ej. silla de montar)
-        traza_msg = f"🔵 **Traza en Z={z_slice}:** Mueve el plano para ver cortes."
-
-    fig.update_layout(
-        scene=dict(xaxis_title="Eje X", yaxis_title="Eje Y", zaxis_title="Eje Z", aspectmode='cube'),
-        margin=dict(l=0, r=0, b=0, t=30), paper_bgcolor="#0E1117", height=600, showlegend=False
-    )
-
+            
+    else: # Familia Elíptica Invertida (Signos - y -)
+        if rhs < 0:
+            rx, ry = a * np.sqrt(abs(rhs)), b * np.sqrt(abs(rhs))
+            xc, yc = h + rx * np.cos(t), k + ry * np.sin(t)
+            fig.add_trace(go.Scatter3d(x=xc, y=yc, z=np.full_like(xc, z_slice), mode='lines', line=dict(color='yellow', width=6)))
+            traza_msg = f"🟢 **Traza en Z={z_slice}:** Elipse (Semiejes: {rx:.2f}, {ry:.2f})"
+        elif rhs == 0:
+            fig.add_trace(go.Scatter3d(x=[h], y=[k], z=[z_slice], mode='markers', marker=dict(color='yellow', size=6)))
+            traza_msg = f"🟡 **Traza en Z={z_slice}:** Punto (Vértice)"
+        else:
+            traza_msg = f"🔴 **Traza en Z={z_slice}:** Conjunto Vacío"
 
     # Mostrar Información de la Traza
     st.markdown(traza_msg)
