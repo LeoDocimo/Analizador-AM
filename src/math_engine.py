@@ -6,7 +6,6 @@ from sympy import S, oo, Interval
 def compute_analytics(func_input, px, py=0.0):
     x, y = sp.symbols('x y', real=True)
     
-    # 1. FIX CLAVE: Forzar a SymPy a leer el texto usando nuestros símbolos reales explícitos
     try:
         f_sym = sp.sympify(func_input, locals={'x': x, 'y': y})
         f_sym = sp.simplify(f_sym)
@@ -23,8 +22,6 @@ def compute_analytics(func_input, px, py=0.0):
         f_np_raw = sp.lambdify((x, y), f_sym, modules=['numpy', {'complex': np.complex128}])
         f_np = lambda val_x, val_y: np.where(np.abs(np.imag(f_np_raw(val_x, val_y))) > 1e-5, np.nan, np.real(f_np_raw(val_x, val_y)))
 
-    # --- INICIO BLINDAJE NUMÉRICO ---
-    # 2. FIX: Evaluación usando evalf() y float() nativo para rechazar complejos automáticamente
     try:
         z_eval = f_sym.subs({x: px, y: py}).evalf()
         z0 = float(z_eval)
@@ -34,7 +31,6 @@ def compute_analytics(func_input, px, py=0.0):
     fx = sp.diff(f_sym, x)
     fy = sp.diff(f_sym, y)
     
-    # --- INICIO BLINDAJE DE DERIVABILIDAD ---
     try:
         if es_am1:
             # Evaluamos las derivadas laterales para detectar puntos angulosos

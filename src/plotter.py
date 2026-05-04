@@ -8,12 +8,12 @@ def create_3d_plot(X, Y, Z, px, py, z0, data, config):
     
     fig = go.Figure(data=[go.Surface(x=X, y=Y, z=Z, colorscale='Viridis', opacity=0.8, showscale=False)])
     
-    # Trayectorias (Unidad II) [cite: 1201, 1307]
+    # Trayectorias 
     if config.get('analizar_tray') and 'xt' in config:
         fig.add_trace(go.Scatter3d(x=config['xt'], y=config['yt'], z=config['zt'], mode='lines', line=dict(color='orange', width=10), name="Tray."))
         fig.add_trace(go.Scatter3d(x=config['xt'], y=config['yt'], z=np.full_like(config['xt'], z_min), mode='lines', line=dict(color='blue', width=6), name="Sombra"))
 
-    # Planos de Corte X e Y (Unidad I) [cite: 1198, 1307, 1412]
+    # Planos de Corte X e Y 
     if config.get('ver_plano_x'):
         zx = np.where(np.abs(np.imag(data['f_np'](px, Y[:,0]))) > 1e-5, np.nan, np.real(data['f_np'](px, Y[:,0])))
         fig.add_trace(go.Scatter3d(x=[px]*len(zx), y=Y[:,0], z=zx, mode='lines', line=dict(color='white', width=8)))
@@ -26,7 +26,7 @@ def create_3d_plot(X, Y, Z, px, py, z0, data, config):
         if config.get('tipo_y') == "Sólido":
             fig.add_trace(go.Surface(x=[[np.min(X), np.max(X)]]*2, y=[[py, py]]*2, z=[[z_min, z_min], [z_max, z_max]], opacity=0.2, colorscale=[[0,'magenta'],[1,'magenta']], showscale=False))
 
-    # Geometría Local y Gradiente (Unidad III y V) [cite: 1205, 1212, 1307]
+    # Geometría Local y Gradiente 
     if not np.isnan(z0):
         if config.get('ver_plano_tan'):
             Z_tan = z0 + data['fx_v']*(X - px) + data['fy_v']*(Y - py)
